@@ -1,0 +1,762 @@
+-- LocalScript for Kaka Hub
+local player = game.Players.LocalPlayer
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "KakaHub"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 400)
+frame.Position = UDim2.new(0.3, 0, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(85, 85, 85)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = frame
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -40, 0, 40)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Kaka Hub"
+title.TextSize = 24
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextStrokeTransparency = 0
+title.Parent = frame
+
+-- Close Button
+local close = Instance.new("TextButton")
+close.Size = UDim2.new(0, 30, 0, 30)
+close.Position = UDim2.new(0, 5, 0, 5)
+close.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+close.Text = "X"
+close.TextColor3 = Color3.new(1, 1, 1)
+close.Font = Enum.Font.SourceSansBold
+close.TextSize = 18
+close.Parent = frame
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = close
+close.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- Scrollable container
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -20, 1, -50)
+scroll.Position = UDim2.new(0, 10, 0, 45)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.ScrollBarThickness = 6
+scroll.BackgroundTransparency = 1
+scroll.Parent = frame
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = scroll
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Button maker (toggle with green ON/gray OFF)
+local function makeToggleButton(text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 40)
+    btn.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 20
+    btn.Parent = scroll
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(120, 120, 120)
+        callback(state)
+    end)
+
+    return btn
+end
+
+-------------------------------------------------
+-- Buttons
+-------------------------------------------------
+
+-- Server Hop Button
+local serverHopBtn = makeToggleButton("Server Hop (nonfunctional)", function(state)
+    if not state then return end -- Only execute once
+
+    -- Disable button so you don’t spam
+    serverHopBtn.Text = "Hopping..."
+    serverHopBtn.Active = false
+
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+
+    local placeId = game.PlaceId
+
+    -- Function to get list of servers
+    local function getServers(cursor)
+        local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=100"
+        if cursor then
+            url = url.."&cursor="..cursor
+        end
+        local success, response = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success then
+            local data = HttpService:JSONDecode(response)
+            return data
+        end
+    end
+
+    -- Collect servers
+    local servers = {}
+    local cursor
+    repeat
+        local data = getServers(cursor)
+        if data and data.data then
+            for _, s in ipairs(data.data) do
+                if s.playing < s.maxPlayers and s.id ~= game.JobId then
+                    table.insert(servers, s.id)
+                end
+            end
+            cursor = data.nextPageCursor
+        else
+            cursor = nil
+        end
+    until not cursor
+
+    if #servers == 0 then
+        warn("No available servers found!")
+        return
+    end
+
+    -- Pick random server
+    local serverId = servers[math.random(1, #servers)]
+
+    -- Teleport and pass a flag so hub can auto-run
+    TeleportService:TeleportToPlaceInstance(placeId, serverId, player, nil)
+end)
+
+makeToggleButton("Spawn Parts + Remove Borders", function(state)
+    if state then
+        -- Remove Borders
+        local map = workspace:FindFirstChild("Map")
+        if map and map:FindFirstChild("Borders") then
+            map.Borders:Destroy()
+        end
+
+        -- Helper to spawn parts
+        local function makePart(size, cframe, color, transparency)
+            local part = Instance.new("Part")
+            part.Anchored = true
+            part.Size = size
+            part.CFrame = cframe
+            part.Color = color or Color3.fromRGB(255, 0, 0)
+            part.Transparency = transparency or 0
+            part.Parent = workspace
+            return part
+        end
+
+        -- Original red parts
+        makePart(Vector3.new(261, 1, 4),   CFrame.new(-411.010742, 19.1356659, -145.093506), Color3.fromRGB(255,0,0), 0)
+        makePart(Vector3.new(3, 1, 412),   CFrame.new(-280.251953, 18.3446617, 57.6823654),   Color3.fromRGB(255,0,0), 0)
+        makePart(Vector3.new(3, 1, 362),   CFrame.new(-541.251953, 18.4999962, 84.9064941),   Color3.fromRGB(255,0,0), 0)
+        makePart(Vector3.new(5, 1, 56),    CFrame.new(-540.251953, 18.958765, -116.865601),   Color3.fromRGB(255,0,0), 0)
+        makePart(Vector3.new(261, 1, 4),   CFrame.new(-409.181061, 18.5601406, 263.906494),   Color3.fromRGB(255,0,0), 0)
+
+        -- New brown transparent parts
+        local brown = Color3.fromRGB(139, 69, 19)
+        makePart(Vector3.new(7, 1.3, 422),    CFrame.new(-286.251953, 15.8445015, 61.18927),     brown, 0.5)
+        makePart(Vector3.new(254, 1.5, 6),    CFrame.new(-416.026367, 16, -139.093506),         brown, 0.5)
+        makePart(Vector3.new(8, 1.3, 493),    CFrame.new(-534.751953, 15.9329014, 42.418457),   brown, 0.5)
+        makePart(Vector3.new(256, 1, 6),      CFrame.new(-403.567322, 16.0230789, 257.906494),  brown, 0.5)
+    end
+end)
+
+-- Flight with Coil Combo auto-equip
+makeToggleButton("Toggle Flight (bypassed)", function(state)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    local backpack = player:WaitForChild("Backpack")
+
+    if state then
+        hum.PlatformStand = true
+
+        -- Auto equip Coil Combo
+        local coil = backpack:FindFirstChild("Coil Combo") or char:FindFirstChild("Coil Combo")
+        if coil then
+            coil.Parent = char
+            hum:EquipTool(coil)
+        end
+
+        _G.flyConn = game:GetService("RunService").RenderStepped:Connect(function()
+            local moveDir = hum.MoveDirection
+            local vel = Vector3.new(moveDir.X * 40, 0, moveDir.Z * 40)
+            if hum.Jump then
+                vel = vel + Vector3.new(0, 40, 0)
+            elseif game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.LeftControl) then
+                vel = vel + Vector3.new(0, -40, 0)
+            end
+            hrp.Velocity = vel
+        end)
+    else
+        hum.PlatformStand = false
+        if _G.flyConn then _G.flyConn:Disconnect() end
+
+        -- Unequip Coil Combo
+        local coil = char:FindFirstChild("Coil Combo")
+        if coil then
+            coil.Parent = backpack
+        end
+    end
+end)
+
+-- Upside Down (stunned)
+makeToggleButton("Toggle Upside Down", function(state)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+
+    if state then
+        hum.PlatformStand = true
+        hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(180), 0, 0)
+        _G.flipConn = game:GetService("RunService").Heartbeat:Connect(function()
+            if not state then return end
+            hrp.Velocity = Vector3.new(0, 0, 0)
+            hrp.RotVelocity = Vector3.new(0, 0, 0)
+        end)
+    else
+        hum.PlatformStand = false
+        if _G.flipConn then _G.flipConn:Disconnect() end
+        hrp.CFrame = CFrame.new(hrp.Position)
+        hrp.Velocity = Vector3.new()
+        hrp.RotVelocity = Vector3.new()
+    end
+end)
+
+-- Jump Platform
+makeToggleButton("Toggle Jump Platform", function(state)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+
+    if state then
+        _G.jumpPlatform = Instance.new("Part")
+        _G.jumpPlatform.Anchored = true
+        _G.jumpPlatform.Size = Vector3.new(8, 1, 8)
+        _G.jumpPlatform.Color = Color3.fromRGB(0, 255, 0)
+        _G.jumpPlatform.Transparency = 0.2
+        _G.jumpPlatform.Parent = workspace
+
+        _G.jumpConn = game:GetService("RunService").RenderStepped:Connect(function()
+            if _G.jumpPlatform and hrp then
+                _G.jumpPlatform.CFrame = hrp.CFrame * CFrame.new(0, -3.5, 0)
+                hrp.Velocity = Vector3.new(hrp.Velocity.X, math.max(hrp.Velocity.Y, 0), hrp.Velocity.Z)
+            end
+        end)
+    else
+        if _G.jumpPlatform then _G.jumpPlatform:Destroy() end
+        if _G.jumpConn then _G.jumpConn:Disconnect() end
+    end
+end)
+
+-- ESP with Highlight
+makeToggleButton("Toggle Player ESP", function(state)
+    if state then
+        for _,plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player and plr.Character then
+                local head = plr.Character:FindFirstChild("Head")
+                if head then
+                    -- Billboard
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "ESP_"..plr.Name
+                    billboard.Adornee = head
+                    billboard.Size = UDim2.new(0,200,0,50)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = gui
+
+                    local label = Instance.new("TextLabel", billboard)
+                    label.Size = UDim2.new(1,0,1,0)
+                    label.BackgroundTransparency = 1
+                    label.Text = plr.Name.." | "..plr.DisplayName
+                    label.TextColor3 = Color3.fromRGB(0,255,0)
+                    label.Font = Enum.Font.SourceSansBold
+                    label.TextStrokeTransparency = 0
+                    label.TextScaled = true
+
+                    -- Highlight
+                    if not plr.Character:FindFirstChild("ESP_Highlight") then
+                        local hl = Instance.new("Highlight")
+                        hl.Name = "ESP_Highlight"
+                        hl.FillColor = Color3.fromRGB(0,255,0)
+                        hl.OutlineTransparency = 1
+                        hl.Parent = plr.Character
+                    end
+                end
+            end
+        end
+    else
+        for _,obj in ipairs(gui:GetChildren()) do
+            if obj:IsA("BillboardGui") and obj.Name:match("^ESP_") then obj:Destroy() end
+        end
+        for _,plr in ipairs(game.Players:GetPlayers()) do
+            if plr.Character then
+                local hl = plr.Character:FindFirstChild("ESP_Highlight")
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+end)
+
+-- 3D Plot Unlock ESP
+local plot3DESPBtn = makeToggleButton("Lock Base Esp", function(state)
+    _G.plot3DESP = state
+
+    -- Keep track of GUIs per plot
+    _G.plot3DGuis = _G.plot3DGuis or {}
+
+    if state then
+        _G.plot3DConn = game:GetService("RunService").RenderStepped:Connect(function()
+            if not _G.plot3DESP then return end
+
+            for _, plot in ipairs(workspace:FindFirstChild("Plots") and workspace.Plots:GetChildren() or {}) do
+                local purchases = plot:FindFirstChild("Purchases")
+                if not purchases then continue end
+                local plotBlock = purchases:FindFirstChild("PlotBlock")
+                if not plotBlock or not plotBlock:FindFirstChild("Main") then continue end
+                local mainPart = plotBlock.Main
+
+                -- Create BillboardGui if it doesn't exist
+                local gui = _G.plot3DGuis[mainPart]
+                if not gui then
+                    gui = Instance.new("BillboardGui")
+                    gui.Size = UDim2.new(0, 200, 0, 50)
+                    gui.AlwaysOnTop = true
+                    gui.StudsOffset = Vector3.new(0, 3, 0)
+                    gui.Adornee = mainPart
+                    gui.Parent = mainPart
+
+                    local label = Instance.new("TextLabel")
+                    label.Size = UDim2.new(1,0,1,0)
+                    label.BackgroundTransparency = 1
+                    label.TextColor3 = Color3.fromRGB(255, 255, 0)
+                    label.Font = Enum.Font.GothamBold
+                    label.TextScaled = true
+                    label.Parent = gui
+
+                    _G.plot3DGuis[mainPart] = gui
+                end
+
+                local label = gui:FindFirstChildOfClass("TextLabel")
+                if label then
+                    local remainingText = "N/A"
+                    local remainingGui = mainPart:FindFirstChild("BillboardGui") and mainPart.BillboardGui:FindFirstChild("RemainingTime")
+                    if remainingGui then
+                        local text = remainingGui.Text
+                        if text == "0s" or text == "0" then
+                            remainingText = "UNLOCKED BASE"
+                        else
+                            remainingText = text
+                        end
+                    end
+                    label.Text = remainingText
+                end
+            end
+        end)
+    else
+        -- Cleanup
+        if _G.plot3DConn then
+            _G.plot3DConn:Disconnect()
+            _G.plot3DConn = nil
+        end
+        for _, gui in pairs(_G.plot3DGuis) do
+            if gui then gui:Destroy() end
+        end
+        _G.plot3DGuis = {}
+    end
+end)
+
+-- Camera Through Walls
+makeToggleButton("Camera Through Walls", function(state)
+    if state then
+        player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+    else
+        player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
+    end
+end)
+
+-- Xray Base (dynamic, exact "structure base home", ignore bright red)
+makeToggleButton("Xray Base", function(state)
+    local affectedParts = {}
+    local function applyXray(part)
+        if part:IsA("BasePart") and part.Name == "structure base home" then
+            local isRed = part.Color == Color3.fromRGB(255,0,0)
+            if not isRed and not affectedParts[part] then
+                affectedParts[part] = part.Transparency
+                part.Transparency = 0.5
+            end
+        end
+    end
+
+    if state then
+        -- apply to existing parts
+        for _, part in ipairs(workspace:GetDescendants()) do
+            applyXray(part)
+        end
+        -- apply to new parts
+        workspace.DescendantAdded:Connect(function(part)
+            if state then applyXray(part) end
+        end)
+    else
+        -- revert
+        for part, oldTransparency in pairs(affectedParts) do
+            if part and part.Parent then
+                part.Transparency = oldTransparency
+            end
+        end
+    end
+end)
+
+-- FPS Booster (toggle)
+local fpsBtn = Instance.new("TextButton")
+fpsBtn.Size = UDim2.new(1, -10, 0, 40)
+fpsBtn.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+fpsBtn.Text = "FPS Booster"
+fpsBtn.TextColor3 = Color3.new(1, 1, 1)
+fpsBtn.Font = Enum.Font.SourceSans
+fpsBtn.TextSize = 20
+fpsBtn.Parent = scroll
+
+local fpsCorner = Instance.new("UICorner")
+fpsCorner.CornerRadius = UDim.new(0, 8)
+fpsCorner.Parent = fpsBtn
+
+-- Toggle state
+local fpsBoostOn = false
+
+fpsBtn.MouseButton1Click:Connect(function()
+    fpsBoostOn = not fpsBoostOn
+    fpsBtn.Text = fpsBoostOn and "FPS Booster (ON)" or "FPS Booster (OFF)"
+
+    if fpsBoostOn then
+        -- Remove textures from MeshParts + SpecialMeshes
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("MeshPart") then
+                obj.TextureID = ""
+                obj.Material = Enum.Material.Plastic
+            elseif obj:IsA("SpecialMesh") then
+                obj.TextureId = ""
+                obj.MeshId = ""
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                obj.Transparency = 1
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+                obj.Enabled = false
+            elseif obj:IsA("BasePart") then
+                obj.Material = Enum.Material.Plastic
+            end
+        end
+
+        -- Remove hats, layered clothes, accessories
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr.Character then
+                for _, item in ipairs(plr.Character:GetChildren()) do
+                    if item:IsA("Accessory") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("LayeredClothing") then
+                        item:Destroy()
+                    end
+                end
+            end
+        end
+
+        -- Cap FPS
+        pcall(function() setfpscap(200) end)
+
+        -- Lighting cleanup
+        local lighting = game:GetService("Lighting")
+        for _, effect in ipairs(lighting:GetChildren()) do
+            if effect:IsA("PostEffect") then
+                effect:Destroy()
+            end
+        end
+        for _, sky in ipairs(lighting:GetChildren()) do
+            if sky:IsA("Sky") then
+                sky:Destroy()
+            end
+        end
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+    else
+        fpsBtn.Text = "FPS Booster (OFF)"
+    end
+end)
+
+-------------------------------------------------
+-- Best Animal ESP (DisplayName + Generation)
+-------------------------------------------------
+local function getBestAnimal()
+    local bestAnimal, bestSpawn, bestValue
+    for _, plot in ipairs(workspace:FindFirstChild("Plots") and workspace.Plots:GetChildren() or {}) do
+        local podiums = plot:FindFirstChild("AnimalPodiums")
+        if podiums then
+            for _, podium in ipairs(podiums:GetChildren()) do
+                local base = podium:FindFirstChild("Base")
+                if base and base:FindFirstChild("Spawn") then
+                    local overhead = base.Spawn:FindFirstChild("Attachment") and base.Spawn.Attachment:FindFirstChild("AnimalOverhead")
+                    if overhead and overhead:FindFirstChild("Generation") then
+                        local genText = overhead.Generation.Text
+                        local value = tonumber(genText:match("([%d%.]+)")) or 0
+                        local unit = genText:match("([KMB]+)") or ""
+                        if unit == "K" then value = value * 1e3
+                        elseif unit == "M" then value = value * 1e6
+                        elseif unit == "B" then value = value * 1e9 end
+
+                        if not bestValue or value > bestValue then
+                            bestValue = value
+                            bestAnimal = overhead
+                            bestSpawn = base.Spawn
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestAnimal, bestSpawn
+end
+
+local bestESPBtn = makeToggleButton("Best Animal ESP", function(state)
+    _G.bestESP = state
+end)
+bestESPBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- auto enabled
+_G.bestESP = true
+
+local bestBillboard
+game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.bestESP then
+        if bestBillboard then
+            bestBillboard:Destroy()
+            bestBillboard = nil
+        end
+        return
+    end
+
+    local bestAnimal, bestSpawn = getBestAnimal()
+    if bestAnimal and bestSpawn then
+        local displayName = bestAnimal:FindFirstChild("DisplayName") and bestAnimal.DisplayName.Text or "Unknown"
+        local generation = bestAnimal:FindFirstChild("Generation") and bestAnimal.Generation.Text or ""
+        local rarityColor = bestAnimal:FindFirstChild("Rarity") and bestAnimal.Rarity.TextColor3 or Color3.fromRGB(0,255,0)
+
+        if not bestBillboard then
+            bestBillboard = Instance.new("BillboardGui")
+            bestBillboard.Size = UDim2.new(0,200,0,50)
+            bestBillboard.AlwaysOnTop = true
+            bestBillboard.Adornee = bestSpawn
+            bestBillboard.Parent = gui
+
+            local label = Instance.new("TextLabel", bestBillboard)
+            label.Size = UDim2.new(1,0,1,0)
+            label.BackgroundTransparency = 1
+            label.Text = displayName.." - "..generation
+            label.TextColor3 = rarityColor
+            label.Font = Enum.Font.SourceSansBold
+            label.TextStrokeTransparency = 0
+            label.TextScaled = true
+        else
+            bestBillboard.Adornee = bestSpawn
+            local label = bestBillboard:FindFirstChildOfClass("TextLabel")
+            if label then
+                label.Text = displayName.." - "..generation
+                label.TextColor3 = rarityColor
+            end
+        end
+    elseif bestBillboard then
+        bestBillboard:Destroy()
+        bestBillboard = nil
+    end
+end)
+
+-------------------------------------------------
+-- Tracers
+-------------------------------------------------
+local tracersBtn = makeToggleButton("Tracers", function(state)
+    _G.tracersEnabled = state
+    _G.tracerBeams = _G.tracerBeams or {}
+
+    -- Clean old loop
+    if _G.tracerConn then _G.tracerConn:Disconnect() end
+    if _G.charConn then _G.charConn:Disconnect() end
+
+    local function startTracerLoop(char)
+        if not _G.tracersEnabled then return end
+
+        local hrp = char:WaitForChild("HumanoidRootPart")
+
+        if _G.tracerConn then _G.tracerConn:Disconnect() end
+        _G.tracerConn = game:GetService("RunService").RenderStepped:Connect(function()
+            if not _G.tracersEnabled then return end
+
+            -- helper to create beams
+            local function createBeam(part0, part1, color)
+                if not part0 or not part1 then return end
+                local beamData = _G.tracerBeams[part1]
+                if not beamData then
+                    local attachment0 = Instance.new("Attachment", part0)
+                    local attachment1 = Instance.new("Attachment", part1)
+                    local beam = Instance.new("Beam")
+                    beam.Attachment0 = attachment0
+                    beam.Attachment1 = attachment1
+                    beam.FaceCamera = true
+                    beam.Width0 = 0.2
+                    beam.Width1 = 0.2
+                    beam.Color = ColorSequence.new(color)
+                    beam.Segments = 10
+                    beam.Transparency = NumberSequence.new(0)
+                    beam.LightInfluence = 0
+                    beam.Parent = workspace
+
+                    beamData = {beam = beam, att0 = attachment0, att1 = attachment1}
+                    _G.tracerBeams[part1] = beamData
+                else
+                    -- update
+                    if beamData.att1.Parent ~= part1 then
+                        beamData.att1.Parent = part1
+                    end
+                    beamData.beam.Color = ColorSequence.new(color)
+                end
+                return beamData
+            end
+
+            -- Best Animal tracer
+            local bestAnimal, bestSpawn = getBestAnimal()
+            for part, beamData in pairs(_G.tracerBeams) do
+                if part ~= bestSpawn and part.Name == "Spawn" then
+                    if beamData.beam then beamData.beam:Destroy() end
+                    if beamData.att0 then beamData.att0:Destroy() end
+                    if beamData.att1 then beamData.att1:Destroy() end
+                    _G.tracerBeams[part] = nil
+                end
+            end
+
+            if bestAnimal and bestSpawn then
+                local color = bestAnimal:FindFirstChild("Rarity") and bestAnimal.Rarity.TextColor3 or Color3.fromRGB(0,255,0)
+                createBeam(hrp, bestSpawn, color)
+            end
+
+            -- Player base tracer
+            local myBase
+            for _, plot in ipairs(workspace:FindFirstChild("Plots") and workspace.Plots:GetChildren() or {}) do
+                local sign = plot:FindFirstChild("PlotSign")
+                if sign and sign:FindFirstChild("YourBase") and sign.YourBase.Enabled then
+                    myBase = sign
+                    break
+                end
+            end
+            if myBase then
+                createBeam(hrp, myBase, Color3.fromRGB(100,200,255))
+            end
+        end)
+    end
+
+    if state then
+        local char = player.Character or player.CharacterAdded:Wait()
+        startTracerLoop(char)
+
+        -- Rebind when respawn
+        _G.charConn = player.CharacterAdded:Connect(function(newChar)
+            startTracerLoop(newChar)
+        end)
+    else
+        if _G.tracerConn then _G.tracerConn:Disconnect() end
+        if _G.charConn then _G.charConn:Disconnect() end
+        for _, v in pairs(_G.tracerBeams) do
+            if v.beam then v.beam:Destroy() end
+            if v.att0 then v.att0:Destroy() end
+            if v.att1 then v.att1:Destroy() end
+        end
+        _G.tracerBeams = {}
+    end
+end)
+
+-------------------------------------------------
+-- Best Animal Notification & Sound (fixed)
+-------------------------------------------------
+local lastBestAnimal = nil
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    local bestAnimal, bestSpawn = getBestAnimal()
+    if bestAnimal and bestSpawn then
+        -- Check if best animal changed
+        if bestAnimal ~= lastBestAnimal then
+            local displayName = bestAnimal:FindFirstChild("DisplayName") and bestAnimal.DisplayName.Text or "Unknown"
+            local generation = bestAnimal:FindFirstChild("Generation") and bestAnimal.Generation.Text or "0"
+            
+            -- Play notification sound
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://17582299860"
+            sound.Volume = 1
+            sound.PlayOnRemove = true
+            sound.Parent = workspace
+            sound:Destroy()
+
+            -- Show notification
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Best Animal Spawned";
+                Text = displayName.." "..generation.." SPAWNED";
+                Duration = 5,
+            })
+
+            -- Update last best
+            lastBestAnimal = bestAnimal
+        end
+    else
+        -- No animals in server? Clear lastBestAnimal so next spawn triggers notification
+        lastBestAnimal = nil
+    end
+end)
+
+------------------------------
+-- Anti Fling / No Slip
+------------------------------
+
+makeToggleButton("Anti Fling / No Slip", function(state)
+    local char = player.Character or player.CharacterAdded:Wait()
+
+    -- Save original properties
+    if not _G.originalPhysicalProps then
+        _G.originalPhysicalProps = {}
+        for _, part in ipairs(char:GetChildren()) do
+            if part:IsA("BasePart") then
+                _G.originalPhysicalProps[part] = part.CustomPhysicalProperties
+            end
+        end
+    end
+
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            if state then
+                -- Make body very dense
+                part.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5)
+            else
+                -- Restore original
+                part.CustomPhysicalProperties = _G.originalPhysicalProps[part] or PhysicalProperties.new(0.7, 0.3, 0.5)
+            end
+        end
+    end
+end)
+
+
+
+
